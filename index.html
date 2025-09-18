@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>EMV Log Analyzer</title>
+	<style>
+		:root {
+			--bg: #0b1020;
+			--panel: #121a33;
+			--panel-2: #0f1730;
+			--text: #e6ecff;
+			--muted: #9bb0ff;
+			--accent: #7c9cff;
+			--accent-2: #6df2c1;
+			--danger: #ff6b6b;
+			--ring: rgba(124, 156, 255, 0.35);
+			--shadow: rgba(0, 0, 0, 0.4);
+		}
+
+		* { box-sizing: border-box; }
+		html, body { height: 100%; }
+		body {
+			margin: 0;
+			font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+			background: radial-gradient(1200px 600px at 20% -10%, #1a2552 0%, transparent 60%),
+				radial-gradient(900px 900px at 100% 0%, #0e2b2f 0%, transparent 50%),
+				var(--bg);
+			color: var(--text);
+		}
+
+		.container {
+			max-width: 1100px;
+			margin: 0 auto;
+			padding: 32px 20px 64px;
+		}
+
+		.header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			margin-bottom: 20px;
+		}
+
+		.title {
+			font-weight: 800;
+			letter-spacing: 0.4px;
+			font-size: 22px;
+		}
+
+		.card {
+			background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+			border: 1px solid rgba(124, 156, 255, 0.15);
+			border-radius: 16px;
+			box-shadow: 0 10px 30px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.03);
+			padding: 20px;
+		}
+
+		.controls {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 16px;
+			align-items: center;
+			margin-bottom: 16px;
+		}
+
+		.dropzone {
+			position: relative;
+			border: 1.5px dashed rgba(124, 156, 255, 0.35);
+			border-radius: 14px;
+			padding: 18px;
+			background: rgba(10, 16, 40, 0.6);
+			transition: 150ms ease;
+			min-height: 84px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+		}
+		.dropzone.dragover {
+			border-color: var(--accent-2);
+			box-shadow: 0 0 0 6px var(--ring);
+			background: rgba(10, 30, 55, 0.6);
+		}
+		.dropzone input[type="file"] {
+			position: absolute;
+			inset: 0;
+			opacity: 0;
+			cursor: pointer;
+		}
+		.dropzone .hint { color: var(--muted); font-size: 14px; }
+		.dropzone .filename { color: var(--accent-2); font-weight: 600; }
+
+		.actions { display: flex; gap: 12px; justify-content: flex-end; }
+		.button {
+			appearance: none;
+			border: 1px solid rgba(124, 156, 255, 0.3);
+			background: linear-gradient(180deg, #2a3a82 0%, #1d2a63 100%);
+			color: white;
+			padding: 12px 16px;
+			border-radius: 12px;
+			cursor: pointer;
+			font-weight: 600;
+			letter-spacing: 0.3px;
+			transition: transform 120ms ease, box-shadow 120ms ease, background 180ms ease;
+		}
+		.button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(28, 46, 120, 0.35); }
+		.button:active { transform: translateY(0); }
+		.button.secondary { background: linear-gradient(180deg, #1b244a 0%, #141c3b 100%); }
+
+		.console {
+			margin-top: 16px;
+			background: #0a0f22;
+			border-radius: 12px;
+			border: 1px solid rgba(124, 156, 255, 0.15);
+			padding: 14px;
+			min-height: 240px;
+			max-height: 520px;
+			overflow: auto;
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+			font-size: 13px;
+			line-height: 1.5;
+			color: #d8e0ff;
+		}
+		.console .console-header {
+			display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+			color: var(--muted);
+			font-size: 12px;
+		}
+		.console pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+		.console .empty { color: var(--muted); opacity: 0.9; }
+
+		.badge {
+			display: inline-flex; align-items: center; gap: 8px;
+			background: rgba(124, 156, 255, 0.12);
+			border: 1px solid rgba(124, 156, 255, 0.22);
+			padding: 6px 10px; border-radius: 999px; font-size: 12px;
+			color: var(--muted);
+		}
+		.badge .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+
+		.footer { margin-top: 16px; color: var(--muted); font-size: 12px; text-align: right; }
+		.kbd { border: 1px solid rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,0.06); font-family: inherit; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="header">
+			<div class="title">EMV Log Analyzer - Patrick</div>
+			<div class="badge"><span class="dot"></span> Ready</div>
+		</div>
+
+		<div class="card">
+			<div class="controls">
+				<label class="dropzone" id="dropzone">
+					<input id="fileInput" type="file" accept=".txt,text/plain" />
+					<div class="hint">
+						<span id="fileHint">Drop EMV .txt log here or click to select</span>
+					</div>
+				</label>
+				<div class="actions">
+					<button class="button" id="analyzeBtn" type="button">Analyze</button>
+				</div>
+			</div>
+
+			<div class="console" id="console">
+				<div class="console-header">
+					<span>Output</span>
+					<div>
+						<button class="button secondary" id="copyBtn" type="button" style="padding:8px 10px;font-size:12px;">Copy JSON</button>
+					</div>
+				</div>
+				<pre id="output" class="empty">No output yet. Upload a log and click Analyze.</pre>
+			</div>
+			<div class="footer">Tip: You can also paste text with <span class="kbd">⌘</span>+<span class="kbd">V</span> while the page is focused.</div>
+		</div>
+	</div>
+
+	<script>
+		(function() {
+			const fileInput = document.getElementById('fileInput');
+			const analyzeBtn = document.getElementById('analyzeBtn');
+			const outputEl = document.getElementById('output');
+			const dropzone = document.getElementById('dropzone');
+			const fileHint = document.getElementById('fileHint');
+			const copyBtn = document.getElementById('copyBtn');
+			
+
+			let loadedText = '';
+			let loadedFilename = '';
+
+			// Drag & drop handling
+			dropzone.addEventListener('dragover', (e) => {
+				e.preventDefault();
+				dropzone.classList.add('dragover');
+			});
+			dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+			dropzone.addEventListener('drop', (e) => {
+				e.preventDefault();
+				dropzone.classList.remove('dragover');
+				if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+					const file = e.dataTransfer.files[0];
+					loadFile(file);
+				}
+			});
+
+			// File input handling
+			fileInput.addEventListener('change', (e) => {
+				const file = e.target.files && e.target.files[0];
+				if (file) loadFile(file);
+			});
+
+			// Paste support
+			document.addEventListener('paste', (e) => {
+				const text = e.clipboardData && e.clipboardData.getData('text');
+				if (text && text.trim().length > 0) {
+					loadedText = text;
+					loadedFilename = 'pasted-log.txt';
+					fileHint.innerHTML = '<span class="filename">pasted-log.txt</span>';
+					renderInfo('Pasted text loaded. Click Analyze.');
+				}
+			});
+
+			
+
+			analyzeBtn.addEventListener('click', () => {
+				if (!loadedText || loadedText.trim().length === 0) {
+					renderError('No log loaded. Please upload or paste a log.');
+					return;
+				}
+				const result = analyzeLog(loadedText);
+				renderJSON(result);
+			});
+
+			copyBtn.addEventListener('click', async () => {
+				const text = outputEl.textContent || '';
+				if (!text.trim()) return;
+				try {
+					await navigator.clipboard.writeText(text);
+					copyBtn.textContent = 'Copied!';
+					setTimeout(() => (copyBtn.textContent = 'Copy JSON'), 1200);
+				} catch (_) {
+					// ignore
+				}
+			});
+
+			function loadFile(file) {
+				if (!file) return;
+				if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
+					renderError('Please upload a .txt log file.');
+					return;
+				}
+				const reader = new FileReader();
+				reader.onload = () => {
+					loadedText = String(reader.result || '');
+					loadedFilename = file.name;
+					fileHint.innerHTML = '<span class="filename">' + escapeHtml(file.name) + '</span>';
+					renderInfo('File loaded. Click Analyze.');
+				};
+				reader.onerror = () => renderError('Failed to read file.');
+				reader.readAsText(file, 'utf-8');
+			}
+
+			function analyzeLog(raw) {
+				const lines = String(raw).split(/\r?\n/);
+
+				// Find the last transaction start marker from bottom: "PBOCProcInit Start:" or "initTrans()"
+				let startIdx = -1;
+				for (let i = lines.length - 1; i >= 0; i -= 1) {
+					const line = lines[i];
+					if (line.includes('PBOCProcInit Start:') || line.includes('initTrans()')) {
+						startIdx = i;
+						break;
+					}
+				}
+
+				const scope = startIdx >= 0 ? lines.slice(startIdx + 1) : lines;
+				const evidence = [];
+				const errorsSet = new Set();
+
+				const RULE_2_APDU = [
+					'ERR:PiccReader_ApduTransmit():-1',
+					'iret=Icc_Command(ApduSend,ApduRecv):-202',
+					'iret=Icc_Command(ApduSend,ApduRecv):-211',
+					'1st pRecebuf:6D00',
+					'1st pRecebuf:6F00',
+				];
+				const RULE_3_ODA = 'SDA_Auth():-1';
+				const RULE_4_ICC = [
+					'EmvLib_ReadAppData() ret:-198',
+					'EmvLib_ReadAppData() ret:-211',
+					'ret=AppselProc(0):-211',
+					'ret=AppselProc(0):-198',
+					'ProcRiskActAnalyse()->RiskActAnalyseProc():-198',
+					'ProcRiskActAnalyse()->RiskActAnalyseProc():-211',
+					'ret=EmvLib_CardAuth():-211',
+					'ret=EmvLib_CardAuth():-198',
+				];
+
+				for (const rawLine of scope) {
+					const line = String(rawLine);
+
+					// Rule 5: both fields in the same single line -> DECLINED
+					const hasDeclined = line.includes('ProcRiskActAnalyse()->RiskActAnalyseProc():-225') &&
+						line.includes('ret=EmvLib_CardAuth():-225');
+					if (hasDeclined) {
+						errorsSet.add('DECLINED');
+						evidence.push({ line, matched_rule: 'DECLINED' });
+					}
+
+					// Rule 2: APDU Error()
+					if (RULE_2_APDU.some(token => line.includes(token))) {
+						errorsSet.add('APDU Error()');
+						evidence.push({ line, matched_rule: 'APDU Error()' });
+					}
+
+					// Rule 3: Card ODA Error
+					if (line.includes(RULE_3_ODA)) {
+						errorsSet.add('Card ODA Error');
+						evidence.push({ line, matched_rule: 'Card ODA Error' });
+					}
+
+					// Rule 4: IC Card Data Error
+					if (RULE_4_ICC.some(token => line.includes(token))) {
+						errorsSet.add('IC Card Data Error');
+						evidence.push({ line, matched_rule: 'IC Card Data Error' });
+					}
+				}
+
+				if (errorsSet.size === 0) {
+					return {
+						errors: ['Unknown Error'],
+						evidence: [],
+					};
+				}
+
+				return {
+					errors: Array.from(errorsSet),
+					evidence,
+				};
+			}
+
+			function renderJSON(obj) {
+				outputEl.classList.remove('empty');
+				outputEl.textContent = JSON.stringify(obj, null, 2);
+			}
+
+			function renderInfo(message) {
+				outputEl.classList.add('empty');
+				outputEl.textContent = message;
+			}
+
+			function renderError(message) {
+				outputEl.classList.remove('empty');
+				const obj = { errors: ['Unknown Error'], evidence: [], message };
+				outputEl.textContent = JSON.stringify(obj, null, 2);
+			}
+
+			function escapeHtml(str) {
+				return String(str)
+					.replaceAll('&', '&amp;')
+					.replaceAll('<', '&lt;')
+					.replaceAll('>', '&gt;')
+					.replaceAll('"', '&quot;')
+					.replaceAll("'", '&#039;');
+			}
+		})();
+	</script>
+</body>
+</html>
+
+
