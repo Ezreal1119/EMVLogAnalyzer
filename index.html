@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>EMV Log Analyzer</title>
+	<title>EMV Log Analyzer - Patrick Xu</title>
 	<style>
 		:root {
 			--bg: #0b1020;
@@ -147,7 +147,7 @@
 <body>
 	<div class="container">
 		<div class="header">
-			<div class="title">EMV Log Analyzer - Patrick</div>
+			<div class="title">EMV Log Analyzer</div>
 			<div class="badge"><span class="dot"></span> Ready</div>
 		</div>
 
@@ -160,7 +160,9 @@
 					</div>
 				</label>
 				<div class="actions">
+					<button class="button secondary" id="analyzeZipBtn" type="button">Analyze ZIP</button>
 					<button class="button" id="analyzeBtn" type="button">Analyze</button>
+					<input id="zipInput" type="file" accept=".zip,application/zip" style="display:none" />
 				</div>
 			</div>
 
@@ -181,6 +183,8 @@
 		(function() {
 			const fileInput = document.getElementById('fileInput');
 			const analyzeBtn = document.getElementById('analyzeBtn');
+			const analyzeZipBtn = document.getElementById('analyzeZipBtn');
+			const zipInput = document.getElementById('zipInput');
 			const outputEl = document.getElementById('output');
 			const dropzone = document.getElementById('dropzone');
 			const fileHint = document.getElementById('fileHint');
@@ -231,6 +235,27 @@
 				}
 				const result = analyzeLog(loadedText);
 				renderJSON(result);
+			});
+
+			// ZIP Analysis flow
+			analyzeZipBtn.addEventListener('click', () => {
+				zipInput.click();
+			});
+			zipInput.addEventListener('change', async (e) => {
+				const file = e.target.files && e.target.files[0];
+				if (!file) return;
+				if (!/\.zip$/i.test(file.name) && file.type !== 'application/zip') {
+					renderError('Please upload a .zip file.');
+					return;
+				}
+				renderInfo('Reading zip...');
+				try {
+					const results = await analyzeZip(file);
+					renderJSON(results);
+				} catch (err) {
+					renderError('Failed to analyze zip.');
+				}
+				zipInput.value = '';
 			});
 
 			copyBtn.addEventListener('click', async () => {
@@ -341,6 +366,23 @@
 				};
 			}
 
+			async function analyzeZip(file) {
+				if (typeof JSZip === 'undefined') {
+					throw new Error('Zip library not loaded');
+				}
+				const zip = await JSZip.loadAsync(file);
+				const entries = Object.values(zip.files).filter(f => !f.dir && /\.txt$/i.test(f.name));
+				if (entries.length === 0) {
+					return { files: [], message: 'No .txt files found in zip.' };
+				}
+				const analyses = await Promise.all(entries.map(async (entry) => {
+					const content = await entry.async('string');
+					const result = analyzeLog(content);
+					return { filename: entry.name, ...result };
+				}));
+				return { files: analyses };
+			}
+
 			function renderJSON(obj) {
 				outputEl.classList.remove('empty');
 				outputEl.textContent = JSON.stringify(obj, null, 2);
@@ -367,6 +409,8 @@
 			}
 		})();
 	</script>
+	<!-- JSZip for in-browser ZIP reading -->
+	<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </body>
 </html>
 
